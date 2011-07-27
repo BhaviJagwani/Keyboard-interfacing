@@ -200,23 +200,22 @@ ISR(INT2_vect)
 {
 count++;
 if (count > 1 && count < 10)
-{
-data = (data >> 1);                      // LSB first
-if(PINB & 0x01) {data = data | 0x80; }   // Store a '1'
-}
+     {data = (data >> 1);                      // LSB first
+      if(PINB & 0x01) {data = data | 0x80; }   // Store a '1'
+     }
 
-
-if (count==33)                         // A packet consists of 33 bits or 3 11 bit words
-{   if(data==0x66){clear();}         // Scan Code corresponding to backspace
-else if(data==0x5a){newline();}       // Scan Code corresponding to Return
-else if(data==0x58){flag=!flag;}      // Scan code corresponding to Caps Lock
-else if(flag)                          // Check whether Caps should be on
-{interpret1();
-Lcd_Send(decoded);}
-else {interpret();                   
-Lcd_Send(decoded);
-}
-    
+if(count==33)
+{ switch(data)
+  {case 0x66:clear();
+             break;
+   case 0x5a:newline();
+             break;
+   case 0x58:flag=!flag;
+             break;
+   default:  interpret();
+             Lcd_Send(decoded);
+			 break;
+   }
 count=0;
 }
 
@@ -224,30 +223,28 @@ count=0;
 
 
 /*----------------------------------------------------------------
-------------FUNCTIONS TO INTERPRET THE SCAN CODE -----------------
+------------FUNCTION TO INTERPRET THE SCAN CODE -----------------
 -----------------------------------------------------------------*/
 
 void interpret(void)
 {
 unsigned char i;
-for(i = 0; unshifted[i][0]!=data && unshifted[i][0]; i++);    // Traverse the array and stop at 'i' where 
-                                                                                     // a match is found
-if (unshifted[i][0] == data)
-{
-decoded=unshifted[i][1];
-delay(10);                                                     // Decode the keypress and send to LCD
-}
+if(flag)
+  {
+   for(i = 0;shifted[i][0]!=data && shifted[i][0]; i++);       // Traverse the array and stop at 'i' where 
+                                                               // a match is found
+       if (shifted[i][0] == data)
+          {decoded=shifted[i][1];}                         // Decode the keypress and send to LCD
+
+   }
+
+else 
+  {
+   for(i = 0; unshifted[i][0]!=data && unshifted[i][0]; i++);    // Traverse the array and stop at 'i' where 
+       if (unshifted[i][0] == data)                               // a match is found
+         {decoded=unshifted[i][1];                               // Decode the keypress and send to LCD
+          delay(10);}                                         
+   }
 }
 
-void interpret1(void)
-{
-unsigned char i;
-for(i = 0;shifted[i][0]!=data && shifted[i][0]; i++);       // Traverse the array and stop at 'i' where 
-                                                                            // a match is found
-if (shifted[i][0] == data)
-{
-decoded=shifted[i][1];                                       // Decode the keypress and send to LCD
-}
-
-}
 
