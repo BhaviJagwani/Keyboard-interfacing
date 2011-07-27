@@ -1,1 +1,2 @@
 Contains codes to interface a PS/2 keyboard with a 16*2  LCD using ATMEGA16.
+keylcd.c uses interrupts(INT2) whereas usartkey.c uses USART for the same.
