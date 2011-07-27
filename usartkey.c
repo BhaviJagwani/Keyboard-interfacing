@@ -1,3 +1,7 @@
+/*----------------------------------------------------------------
+-------------------- HEADER FILES -------------------------------
+-----------------------------------------------------------------*/
+
 #include <avr/io.h>
 #include <string.h>
 #include <util/delay.h>
@@ -5,6 +9,10 @@
 #include <stdlib.h>
 #include <compat/deprecated.h>
 #include <avr/interrupt.h>
+
+/*----------------------------------------------------------------
+------------- DEFINITIONS -------------------------------------
+-----------------------------------------------------------------*/
 
 
 #define DATA_DDR DDRA     // ENTER THE PORT WHICH CONTROLS
@@ -19,6 +27,9 @@
 #define CONTROL_MASK     0X70     // CHANGE THIS VALUE CONSIDERING THE PINS ABOVE AS HIGH
 
 
+/*----------------------------------------------------------------
+-------------CONTROL BITS OF LCD --------------------------------
+-----------------------------------------------------------------*/
 
 #define Set_Enable  CONTROL_PORT |=_BV(Enable)           // THE MACROS HERE ARE
 #define Clear_Enable CONTROL_PORT &=~_BV(Enable)          //SELF EXPLANATORY
@@ -29,6 +40,10 @@
 #define Data_Lcd(b) DATA_PORT=b                  
 #define delay(b) _delay_ms(b) 
 
+/*----------------------------------------------------------------
+-----------------FUNCTION DECLARATIONS ---------------------------
+-----------------------------------------------------------------*/
+
 void Init_Ports(void);                // Initialise Ports , Necessary for selecting input output pins in the MCU
 void Init_Lcd(void);                  // Initialise LCD   , Necessary for starting and clearing LCD screen
 void Lcd_Send(unsigned char a);       // For sending a character to the LCD                 
@@ -38,10 +53,18 @@ void interpret(void);                  //  Interpret the scan code received-when
 void interpret1(void);                 //when caps lock is on
 void clear(void);
 
+/*----------------------------------------------------------------
+-----------------GLOBAL DECLARATIONS ---------------------------
+-----------------------------------------------------------------*/
+
 static unsigned int count=0;
 static unsigned char data=0x00,temp=0x00;
 static unsigned char decoded=0x00;
 static unsigned int flag=0;
+
+/*----------------------------------------------------------------
+----------------MAIN FUNCTION--------------------------------------
+-----------------------------------------------------------------*/
 
 int main(void)
 {
@@ -56,6 +79,23 @@ while(1)
 
 }
 
+/*----------------------------------------------------------------
+-----------------FUNCTIONS TO INITIALIZE PORTS--------------------
+-----------------------------------------------------------------*/
+
+void Init_Ports(void)
+{
+DATA_DDR=0XFF;                                        //Setting data port for output
+CONTROL_DDR=CONTROL_MASK;
+CONTROL_PORT=0x7A;                                    // Setting selected pins of control port for output
+CONTROL_PORT&=~(_BV(Enable)|_BV(RS )|_BV(RW));       //Setting values to 0 at start
+DDRB=0X00;                                            //PIND0=RXD(DATA) AND PINB0=XCK(CLOCK)
+PORTB=0XFF;
+}
+
+/*----------------------------------------------------------------
+-----------------FUNCTIONS TO INITIALIZE USART--------------------
+-----------------------------------------------------------------*/
 
 void usart_init(void)
 { UCSRB|=(1<<RXCIE)|(1<<RXEN);                                                 //enable receiver and rx complete interrupt
@@ -66,6 +106,11 @@ void usart_init(void)
  sei(); 
 }
 
+/*----------------------------------------------------------------
+------------FUNCTION TO OBTAIN DATA USING USART -------------------
+-----------------------------------------------------------------*/
+
+
 ISR(USART_RXC_vect)
 {  count++;
   if(count==1)
@@ -73,18 +118,26 @@ ISR(USART_RXC_vect)
   if(count>1&&count<4)
      {temp=UDR;}
   if(count==3)
-     {count=0;
-	  if(data==0x66){clear();}         // Scan Code corresponding to backspace
-         else if(data==0x5a){newline();}       // Scan Code corresponding to Return
-              else if(data==0x58){flag=!flag;}      // Scan code corresponding to Caps Lock
-                   else if(flag)                          // Check whether Caps should be on
-                          {interpret1();
-                          Lcd_Send(decoded);}
-                        else {interpret();                   
-                              Lcd_Send(decoded);}
-         
+     { switch(data)
+      {case 0x66:clear();
+             break;
+       case 0x5a:newline();
+             break;
+       case 0x58:flag=!flag;
+             break;
+       default:  interpret();
+             Lcd_Send(decoded);
+			 break;
       }
+      count=0;
+     }
+         
 }
+
+
+/*----------------------------------------------------------------
+-----------------SEND A CHARACTER TO LCD-------------------------
+-----------------------------------------------------------------*/
 
 void Lcd_Send(unsigned char a)
 {
@@ -97,6 +150,9 @@ Clear_Enable;                               // Clears it,
 delay(10);                                   // to be ready for next character.
 }
 
+/*----------------------------------------------------------------
+------------FUNCTION TO INITIATE LCD -----------------------------
+-----------------------------------------------------------------*/
 
 void Init_Lcd(void)
 {
@@ -113,14 +169,15 @@ Write_Lcd;
 delay(15);
 
 for(i=0;i<5;i++)
-{
-Data_Lcd(init[i]);
-Set_Enable;
-delay(10);
-Clear_Enable;
-}
+     {Data_Lcd(init[i]);
+     Set_Enable;
+     delay(10);
+     Clear_Enable;}
 }
 
+/*----------------------------------------------------------------
+------------FUNCTION TO GOTO NEXT LINE IN LCD --------------------
+-----------------------------------------------------------------*/
 
 void newline(void)
 {
@@ -133,6 +190,10 @@ Clear_Enable;                                // |                    |
 delay(10);                                    //  --                --
 }
 
+/*----------------------------------------------------------------
+------------BACKSPACE FUNCTION -----------------------------------
+-----------------------------------------------------------------*/
+
 void clear(void)
 {
 delay(5);
@@ -144,42 +205,27 @@ Clear_Enable;                                // |                    |
 delay(5);                                    //  --                --
 }
 
+/*----------------------------------------------------------------
+------------FUNCTION TO INTERPRET THE SCAN CODE -----------------
+-----------------------------------------------------------------*/
+
 void interpret(void)
 {
 unsigned char i;
-for(i = 0; unshifted[i][0]!=data && unshifted[i][0]; i++);    // Traverse the array and stop at 'i' where 
-                                                                                     // a match is found
-if (unshifted[i][0] == data)
-{
-decoded=unshifted[i][1];
-delay(10);                                                     // Decode the keypress and send to LCD
+if(flag)
+  {
+   for(i = 0;shifted[i][0]!=data && shifted[i][0]; i++);       // Traverse the array and stop at 'i' where 
+                                                               // a match is found
+       if (shifted[i][0] == data)
+          {decoded=shifted[i][1];}                         // Decode the keypress and send to LCD
+
+   }
+
+else 
+  {
+   for(i = 0; unshifted[i][0]!=data && unshifted[i][0]; i++);    // Traverse the array and stop at 'i' where 
+       if (unshifted[i][0] == data)                               // a match is found
+         {decoded=unshifted[i][1];                               // Decode the keypress and send to LCD
+          delay(10);}                                         
+   }
 }
-}
-
-void interpret1(void)
-{
-unsigned char i;
-for(i = 0;shifted[i][0]!=data && shifted[i][0]; i++);       // Traverse the array and stop at 'i' where 
-                                                                            // a match is found
-if (shifted[i][0] == data)
-{
-decoded=shifted[i][1];                                       // Decode the keypress and send to LCD
-}
-
-}
-
-void Init_Ports(void)
-{
-DATA_DDR=0XFF;                                        //  Setting data port for output
-CONTROL_DDR=CONTROL_MASK;
-//CONTROL_PORT=0x7A;                            //   Setting selected pins of control port for output
-CONTROL_PORT&=~(_BV(Enable)|_BV(RS )|_BV(RW));       //   Setting values to 0 at start
-DDRB=0X00;                                            //PIND0=RXD(DATA) AND PINB0=XCK(CLOCK)
-PORTB=0XFF;
-}
-
-
-
-
-
-
